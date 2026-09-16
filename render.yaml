@@ -21,6 +21,6 @@ services:
       - key: ADMIN_SECRET_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: http://localhost:4321,https://yourdomain.hostinger.com
+        value: "*"
       - key: ENVIRONMENT
         value: production

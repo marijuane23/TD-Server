@@ -18,10 +18,10 @@ class Settings(BaseSettings):
     # Admin secret key
     ADMIN_SECRET_KEY: str = os.getenv("ADMIN_SECRET_KEY", "bisu_bilar_td_secret_2026")
 
-    # Allowed CORS Origins
+    # Allowed CORS Origins (default * allows Hostinger, previews, custom domains, and localhost)
     CORS_ORIGINS: str = os.getenv(
         "CORS_ORIGINS", 
-        "http://localhost:4321,http://127.0.0.1:4321,http://localhost:3000,http://127.0.0.1:3000,https://teachersday.bisu-bilar.edu.ph"
+        "*"
     )
 
     # Server settings
