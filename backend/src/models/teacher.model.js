@@ -170,30 +170,34 @@ export const TeacherModel = {
     const params = [];
 
     if (q && q.trim() !== '') {
-      whereClause = 'WHERE name LIKE ? OR department LIKE ?';
+      whereClause = 'WHERE (t.name LIKE ? OR t.department LIKE ? OR c.name LIKE ? OR c.code LIKE ?)';
       const searchTerm = `%${q.trim()}%`;
-      params.push(searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
-    let orderBy = 'ORDER BY name ASC';
+    let orderBy = 'ORDER BY t.name ASC';
     switch (sort) {
       case 'name_desc':
-        orderBy = 'ORDER BY name DESC';
+        orderBy = 'ORDER BY t.name DESC';
         break;
       case 'newest':
-        orderBy = 'ORDER BY id DESC';
+        orderBy = 'ORDER BY t.id DESC';
         break;
       case 'department':
-        orderBy = 'ORDER BY department ASC, name ASC';
+        orderBy = 'ORDER BY c.name ASC, t.department ASC, t.name ASC';
         break;
       case 'name_asc':
       default:
-        orderBy = 'ORDER BY name ASC';
+        orderBy = 'ORDER BY t.name ASC';
         break;
     }
 
     const [rows] = await pool.query(
-      `SELECT name, department, slug, created_at FROM teachers ${whereClause} ${orderBy}`,
+      `SELECT t.name, t.department, t.college_id, c.name AS college_name, c.code AS college_code, t.slug, t.created_at 
+       FROM teachers t 
+       LEFT JOIN colleges c ON t.college_id = c.id 
+       ${whereClause} 
+       ${orderBy}`,
       params
     );
     return rows;
