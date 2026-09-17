@@ -7,8 +7,8 @@ export const TeachersController = {
   // GET /teachers (search, sort, pagination)
   async getTeachers(req, res, next) {
     try {
-      const { q, sort, page, limit } = req.query;
-      const result = await TeacherModel.getTeachers({ q, sort, page, limit });
+      const { q, college, sort, page, limit } = req.query;
+      const result = await TeacherModel.getTeachers({ q, college, sort, page, limit });
       res.json(result);
     } catch (err) {
       next(err);
