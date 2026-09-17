@@ -16,20 +16,34 @@ function formatTeacher(t) {
 }
 
 export const TeacherModel = {
-  // Paginated list with search and sort
-  async getTeachers({ q = '', sort = 'name_asc', page = 1, limit = 12 }) {
+  // Paginated list with search, college filter, and sort
+  async getTeachers({ q = '', college = '', sort = 'name_asc', page = 1, limit = 12 }) {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 12));
     const offset = (pageNum - 1) * limitNum;
 
-    let whereClause = '';
+    let whereConditions = [];
     const params = [];
 
     if (q && q.trim() !== '') {
-      whereClause = 'WHERE (t.name LIKE ? OR t.department LIKE ? OR c.name LIKE ? OR c.code LIKE ?)';
+      whereConditions.push('(t.name LIKE ? OR t.department LIKE ? OR c.name LIKE ? OR c.code LIKE ?)');
       const searchTerm = `%${q.trim()}%`;
       params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
+
+    if (college && college !== 'all' && college.trim() !== '') {
+      const colTrim = college.trim();
+      const colId = parseInt(colTrim, 10);
+      if (!isNaN(colId) && String(colId) === colTrim) {
+        whereConditions.push('(t.college_id = ? OR c.code = ?)');
+        params.push(colId, colTrim);
+      } else {
+        whereConditions.push('(c.code = ? OR c.name = ?)');
+        params.push(colTrim, colTrim);
+      }
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // Sort mapping
     let orderBy = 'ORDER BY t.name ASC';
@@ -42,6 +56,14 @@ export const TeacherModel = {
         break;
       case 'department':
         orderBy = 'ORDER BY c.name ASC, t.department ASC, t.name ASC';
+        break;
+      case 'college':
+      case 'college_asc':
+      case 'colleges':
+        orderBy = 'ORDER BY CASE WHEN c.name IS NULL OR c.name = \'\' THEN 1 ELSE 0 END, c.name ASC, t.name ASC';
+        break;
+      case 'college_desc':
+        orderBy = 'ORDER BY CASE WHEN c.name IS NULL OR c.name = \'\' THEN 1 ELSE 0 END, c.name DESC, t.name ASC';
         break;
       case 'name_asc':
       default:
