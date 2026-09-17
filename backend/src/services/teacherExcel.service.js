@@ -32,11 +32,21 @@ export const TeacherExcelService = {
     });
 
     const [colleges] = await pool.query('SELECT id, name, code FROM colleges');
-    const collegeMap = new Map();
-    colleges.forEach(c => {
-      collegeMap.set(c.name.toLowerCase().trim(), c.id);
-      collegeMap.set(c.code.toLowerCase().trim(), c.id);
-    });
+    
+    function resolveCollegeId(val, dept) {
+      if (!val && !dept) return null;
+      const candidates = [val, dept].filter(Boolean).map(s => String(s).trim().toLowerCase());
+      for (const text of candidates) {
+        for (const col of colleges) {
+          const codeLower = col.code.toLowerCase();
+          const nameLower = col.name.toLowerCase();
+          if (text === codeLower || text === nameLower || text.includes(codeLower) || text.includes(nameLower)) {
+            return col.id;
+          }
+        }
+      }
+      return null;
+    }
 
     const [existingTeachers] = await pool.query('SELECT name, slug FROM teachers');
     const existingNames = new Set(existingTeachers.map(t => t.name.toLowerCase().trim()));
@@ -66,11 +76,14 @@ export const TeacherExcelService = {
       }
 
       // Map college_id from college column or department fallback
-      let college_id = null;
-      if (collegeVal && collegeMap.has(collegeVal.toLowerCase())) {
-        college_id = collegeMap.get(collegeVal.toLowerCase());
-      } else if (department && collegeMap.has(department.toLowerCase())) {
-        college_id = collegeMap.get(department.toLowerCase());
+      const college_id = resolveCollegeId(collegeVal, department);
+      if (!college_id) {
+        skipped.push({
+          row: r,
+          name,
+          reason: `Missing or unrecognized college "${collegeVal || ''}". Valid colleges: CTECH, CTE, CBM, CFES, COAS, CADS.`,
+        });
+        continue;
       }
 
       // Generate unique slug
@@ -126,8 +139,9 @@ export const TeacherExcelService = {
 
     worksheet.columns = [
       { header: 'Teacher Name', key: 'name', width: 32 },
-      { header: 'College', key: 'college', width: 35 },
-      { header: 'Department', key: 'department', width: 35 },
+      { header: 'College', key: 'college', width: 42 },
+      { header: 'College Code', key: 'college_code', width: 16 },
+      { header: 'Department (Optional)', key: 'department', width: 35 },
       { header: 'Profile URL Slug', key: 'slug', width: 30 },
       { header: 'Date Added', key: 'created_at', width: 22 },
     ];
@@ -145,7 +159,8 @@ export const TeacherExcelService = {
       worksheet.addRow({
         name: t.name,
         college: t.college_name || 'N/A',
-        department: t.department || 'N/A',
+        college_code: t.college_code || 'N/A',
+        department: t.department || '',
         slug: t.slug,
         created_at: t.created_at ? new Date(t.created_at).toISOString().split('T')[0] : '',
       });
@@ -154,19 +169,22 @@ export const TeacherExcelService = {
     return await workbook.xlsx.writeBuffer();
   },
 
-  // Generate blank template with instructions
+  // Generate blank template with reference sheet
   async generateTemplateBuffer() {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Teachers Template');
+    workbook.creator = "BISU Bilar Teacher's Day";
+    workbook.created = new Date();
 
-    worksheet.columns = [
+    // Sheet 1: Teachers Template
+    const templateSheet = workbook.addWorksheet('Teachers Template');
+    templateSheet.columns = [
       { header: 'Name', key: 'name', width: 32 },
-      { header: 'College', key: 'college', width: 35 },
-      { header: 'Department', key: 'department', width: 35 },
-      { header: 'Photo URL', key: 'photo_url', width: 40 },
+      { header: 'College', key: 'college', width: 42 },
+      { header: 'Department (Optional)', key: 'department', width: 35 },
+      { header: 'Photo URL (Optional)', key: 'photo_url', width: 40 },
     ];
 
-    const headerRow = worksheet.getRow(1);
+    const headerRow = templateSheet.getRow(1);
     headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     headerRow.fill = {
       type: 'pattern',
@@ -174,11 +192,37 @@ export const TeacherExcelService = {
       fgColor: { argb: 'FF0D9488' }, // Teal
     };
 
-    worksheet.addRow({
-      name: 'Sample Teacher Name (Required)',
-      college: 'College of Teacher Education (or CTE)',
-      department: 'Secondary Education (Optional)',
-      photo_url: 'https://example.com/photo.jpg (Optional)',
+    templateSheet.addRow({
+      name: 'Dr. Maria Elena Santos',
+      college: 'CTECH',
+      department: 'Computer Science Department',
+      photo_url: '',
+    });
+    templateSheet.addRow({
+      name: 'Prof. Juan Dela Cruz',
+      college: 'College of Teacher Education',
+      department: '',
+      photo_url: '',
+    });
+
+    // Sheet 2: Colleges Reference
+    const refSheet = workbook.addWorksheet('Colleges Reference');
+    refSheet.columns = [
+      { header: 'College Code', key: 'code', width: 18 },
+      { header: 'Official College Name', key: 'name', width: 50 },
+    ];
+
+    const refHeader = refSheet.getRow(1);
+    refHeader.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    refHeader.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E3A8A' }, // Navy Blue
+    };
+
+    const [colleges] = await pool.query('SELECT code, name FROM colleges ORDER BY id ASC');
+    colleges.forEach(c => {
+      refSheet.addRow({ code: c.code, name: c.name });
     });
 
     return await workbook.xlsx.writeBuffer();
