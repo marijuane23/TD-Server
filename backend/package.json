@@ -1,0 +1,28 @@
+{
+  "name": "td-backend",
+  "version": "1.0.0",
+  "description": "Teacher's Day Backend API",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "db:test": "node scripts/test-connection.js",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed-admin": "node scripts/create-admin.js",
+    "db:seed-teachers": "node scripts/seed-teachers.js",
+    "test:api": "node scripts/test-api.js",
+    "template:generate": "node scripts/generate-template.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.7.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
+    "mysql2": "^3.12.0"
+  }
+}
