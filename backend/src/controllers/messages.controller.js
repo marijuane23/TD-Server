@@ -5,6 +5,8 @@ import { WallMessageModel } from '../models/wallMessage.model.js';
 import { ModerationService } from '../services/moderation.service.js';
 import { getMediaType } from '../utils/validators.js';
 import { config } from '../config/env.js';
+import { getBackendUrl } from '../utils/url.js';
+import { apiCache } from '../utils/cache.js';
 
 export const MessagesController = {
   // POST /teachers/:slug/messages
@@ -71,7 +73,11 @@ export const MessagesController = {
         }
       }
 
-      const mediaUrl = mediaId ? `${config.backendPublicUrl}/media/${mediaId}` : null;
+      // Invalidate caches so new message reflects immediately
+      apiCache.invalidate('teachers:');
+      apiCache.invalidate('wall:');
+
+      const mediaUrl = mediaId ? `${getBackendUrl(req)}/media/${mediaId}` : null;
 
 
       res.status(201).json({

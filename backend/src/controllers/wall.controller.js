@@ -5,11 +5,13 @@ import { MessageModel } from '../models/message.model.js';
 import { MessageMediaModel } from '../models/messageMedia.model.js';
 import { config } from '../config/env.js';
 import { imageCache, apiCache, isFresh, generateETag } from '../utils/cache.js';
+import { getBackendUrl } from '../utils/url.js';
 
 export const WallController = {
   // GET /wall (?after_id=&limit=)
   async getWallGreetings(req, res, next) {
     try {
+      const backendUrl = getBackendUrl(req);
       const { after_id, limit } = req.query;
       const cacheKey = `wall:greetings:${after_id || 'initial'}:${limit || '50'}`;
       const cached = apiCache.get(cacheKey);
@@ -28,7 +30,7 @@ export const WallController = {
         teacher_id: item.teacher_id,
         teacher_name: item.teacher_name || null,
         teacher_slug: item.teacher_slug || null,
-        image_url: item.has_media ? `${config.backendPublicUrl}/wall/${item.id}/image` : null,
+        image_url: item.has_media ? `${backendUrl}/wall/${item.id}/image` : null,
       }));
 
       const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
@@ -179,7 +181,7 @@ export const WallController = {
         teacher_id: item.teacher_id,
         teacher_name: item.teacher_name || (teacher ? teacher.name : null),
         teacher_slug: item.teacher_slug || (teacher ? teacher.slug : null),
-        image_url: item.has_media ? `${config.backendPublicUrl}/wall/${item.id}/image` : null,
+        image_url: item.has_media ? `${getBackendUrl(req)}/wall/${item.id}/image` : null,
       };
 
       res.status(201).json({
