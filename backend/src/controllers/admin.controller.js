@@ -6,6 +6,7 @@ import { ModerationService } from '../services/moderation.service.js';
 import { PhotoResolverService } from '../services/photoResolver.service.js';
 import { generateSlug } from '../utils/validators.js';
 import { config } from '../config/env.js';
+import { imageCache, apiCache } from '../utils/cache.js';
 
 export const AdminController = {
   // POST /admin/login
@@ -80,6 +81,9 @@ export const AdminController = {
         photo_mime,
       });
 
+      // Invalidate teacher caches
+      apiCache.invalidate('teachers:');
+
       res.status(201).json({
         success: true,
         message: 'Teacher added successfully.',
@@ -98,6 +102,10 @@ export const AdminController = {
       }
 
       const result = await TeacherExcelService.importFromBuffer(req.file.buffer);
+
+      // Invalidate teacher caches on bulk import
+      apiCache.invalidate('teachers:');
+
       res.json({
         success: true,
         message: `Import completed: ${result.createdCount} teachers added.`,
@@ -177,6 +185,11 @@ export const AdminController = {
         return res.status(404).json({ error: 'Teacher not found.' });
       }
       await TeacherModel.delete(id);
+
+      // Invalidate caches
+      apiCache.invalidate('teachers:');
+      imageCache.del(`teacher_photo:${id}`);
+
       res.json({
         success: true,
         message: `Teacher "${teacher.name}" deleted successfully.`,
@@ -194,6 +207,11 @@ export const AdminController = {
         return res.status(400).json({ error: 'Please provide an array of teacher IDs to delete.' });
       }
       const count = await TeacherModel.deleteMany(ids);
+
+      // Invalidate caches
+      apiCache.invalidate('teachers:');
+      ids.forEach(id => imageCache.del(`teacher_photo:${id}`));
+
       res.json({
         success: true,
         message: `Successfully deleted ${count} teacher(s).`,
@@ -209,6 +227,11 @@ export const AdminController = {
     try {
       const messageId = parseInt(req.params.id, 10);
       await ModerationService.deleteMessage(messageId);
+
+      // Invalidate caches
+      apiCache.invalidate('teachers:');
+      apiCache.invalidate('wall:');
+
       res.json({
         success: true,
         message: 'Message and any associated media deleted successfully.',
@@ -223,6 +246,11 @@ export const AdminController = {
     try {
       const mediaId = parseInt(req.params.id, 10);
       await ModerationService.deleteMedia(mediaId);
+
+      // Invalidate caches
+      imageCache.del(`media:${mediaId}`);
+      apiCache.invalidate('teachers:');
+
       res.json({
         success: true,
         message: 'Attached media removed successfully. Text message remains intact.',
@@ -237,6 +265,11 @@ export const AdminController = {
     try {
       const wallId = parseInt(req.params.id, 10);
       await ModerationService.deleteWallGreeting(wallId);
+
+      // Invalidate caches
+      imageCache.del(`wall_img:${wallId}`);
+      apiCache.invalidate('wall:');
+
       res.json({
         success: true,
         message: 'Wall greeting deleted successfully.',

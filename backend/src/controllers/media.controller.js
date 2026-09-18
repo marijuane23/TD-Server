@@ -6,7 +6,7 @@ export const MediaController = {
     try {
       const { media_id } = req.params;
       const isDownload = req.query.download === '1' || req.query.download === 'true';
-      await MediaService.streamMedia(media_id, isDownload, res);
+      await MediaService.streamMedia(media_id, isDownload, res, req);
     } catch (err) {
       next(err);
     }
