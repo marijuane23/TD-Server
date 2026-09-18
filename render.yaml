@@ -1,0 +1,36 @@
+# Render Blueprint configuration for Teacher's Day Backend
+# Deployable directly on Render (https://render.com)
+services:
+  - type: web
+    name: td-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: singapore # Change to your preferred region (e.g. oregon, frankfurt, ohio)
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_HOST
+        sync: false # Set in Render Dashboard or .env
+      - key: DB_PORT
+        value: 3306
+      - key: DB_USER
+        sync: false # Set in Render Dashboard
+      - key: DB_PASSWORD
+        sync: false # Set in Render Dashboard
+      - key: DB_NAME
+        sync: false # Set in Render Dashboard
+      - key: DB_SSL
+        value: "true" # Enables SSL for remote cloud databases (Hostinger, Aiven, PlanetScale, etc.)
+      - key: CORS_ORIGIN
+        sync: false # e.g. https://your-frontend-app.vercel.app
+      - key: BACKEND_PUBLIC_URL
+        sync: false # e.g. https://td-backend.onrender.com
