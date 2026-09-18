@@ -21,7 +21,7 @@ app.set('trust proxy', 1);
 // CORS configuration supporting configured origins (comma-separated), local dev, and cloud hosts
 const configuredOrigins = (config.corsOrigin || '')
   .split(',')
-  .map((o) => o.trim())
+  .map((o) => o.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
 const allowedOrigins = [
@@ -29,14 +29,18 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:3000',
-  'https://teachersday2026.bscs4b.com/',
-].filter(Boolean);
+  'https://teachersday2026.bscs4b.com',
+]
+  .map((o) => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, or server-to-server)
       if (!origin) return callback(null, true);
+
+      const cleanOrigin = origin.replace(/\/+$/, '');
 
       // If '*' is specified, allow all origins
       if (allowedOrigins.includes('*')) {
@@ -45,8 +49,8 @@ app.use(
 
       // Check if origin matches allowed list or domain pattern
       const isAllowed = allowedOrigins.some((allowed) => {
-        if (allowed === origin) return true;
-        if (allowed.startsWith('*.') && origin.endsWith(allowed.slice(1))) return true;
+        if (allowed === cleanOrigin) return true;
+        if (allowed.startsWith('*.') && cleanOrigin.endsWith(allowed.slice(1))) return true;
         return false;
       });
 
