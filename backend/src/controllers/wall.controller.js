@@ -4,12 +4,20 @@ import { TeacherModel } from '../models/teacher.model.js';
 import { MessageModel } from '../models/message.model.js';
 import { MessageMediaModel } from '../models/messageMedia.model.js';
 import { config } from '../config/env.js';
+import { imageCache, apiCache, isFresh, generateETag } from '../utils/cache.js';
 
 export const WallController = {
   // GET /wall (?after_id=&limit=)
   async getWallGreetings(req, res, next) {
     try {
       const { after_id, limit } = req.query;
+      const cacheKey = `wall:greetings:${after_id || 'initial'}:${limit || '50'}`;
+      const cached = apiCache.get(cacheKey);
+
+      if (cached) {
+        return res.json(cached);
+      }
+
       const rawItems = await WallMessageModel.getWallMessages({ after_id, limit });
 
       const items = rawItems.map(item => ({
@@ -24,29 +32,63 @@ export const WallController = {
       }));
 
       const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
-
-      res.json({
+      const responseData = {
         items,
         count: items.length,
         nextCursor,
-      });
+      };
+
+      // Cache API response for 30 seconds
+      apiCache.set(cacheKey, responseData, 30);
+
+      res.json(responseData);
     } catch (err) {
       next(err);
     }
   },
 
-  // GET /wall/:id/image (stream attached image blob)
+  // GET /wall/:id/image (stream attached image blob with LRU cache & ETag 304)
   async getWallImage(req, res, next) {
     try {
       const { id } = req.params;
-      const media = await WallMessageModel.getImageById(id);
-      if (!media || !media.media_data) {
-        return res.status(404).json({ error: 'Image not found' });
+      const cacheKey = `wall_img:${id}`;
+      let cached = imageCache.get(cacheKey);
+
+      let mediaData;
+      let mediaMime;
+      let etag;
+
+      if (cached) {
+        mediaData = cached.data;
+        mediaMime = cached.mime;
+        etag = cached.etag;
+      } else {
+        const media = await WallMessageModel.getImageById(id);
+        if (!media || !media.media_data) {
+          return res.status(404).json({ error: 'Image not found' });
+        }
+
+        mediaData = media.media_data;
+        mediaMime = media.media_mime || 'image/jpeg';
+        etag = generateETag(cacheKey, mediaData);
+
+        imageCache.set(cacheKey, {
+          data: mediaData,
+          mime: mediaMime,
+          etag,
+        });
       }
 
-      res.set('Content-Type', media.media_mime || 'image/jpeg');
-      res.set('Cache-Control', 'public, max-age=86400');
-      return res.send(media.media_data);
+      // Check HTTP Conditional Request
+      if (isFresh(req, etag)) {
+        return res.status(304).end();
+      }
+
+      res.setHeader('Content-Type', mediaMime);
+      res.setHeader('Content-Length', mediaData.length);
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+      return res.end(mediaData);
     } catch (err) {
       next(err);
     }
@@ -125,6 +167,10 @@ export const WallController = {
         }
       }
 
+      // Invalidate wall and teacher cached lists so new tribute shows immediately
+      apiCache.invalidate('wall:');
+      apiCache.invalidate('teachers:');
+
       const responseItem = {
         id: item.id,
         sender_name: item.sender_name,
@@ -149,3 +195,4 @@ export const WallController = {
   },
 };
 
+export default WallController;
