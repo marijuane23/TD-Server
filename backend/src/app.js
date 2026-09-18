@@ -29,6 +29,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:3000',
+  'https://teachersday2026.bscs4b.com',
 ].filter(Boolean);
 
 app.use(
