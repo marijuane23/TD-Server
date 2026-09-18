@@ -123,6 +123,17 @@ export const TeacherModel = {
     return rows[0] ? formatTeacher(rows[0]) : null;
   },
 
+  // Get lightweight list of all teachers for dropdown selects
+  async getAllForDropdown() {
+    const [rows] = await pool.query(
+      `SELECT t.id, t.name, t.department, t.slug, c.name AS college_name, c.code AS college_code
+       FROM teachers t
+       LEFT JOIN colleges c ON t.college_id = c.id
+       ORDER BY t.name ASC`
+    );
+    return rows;
+  },
+
   // Retrieve raw binary photo data for streaming
   async getPhotoById(id) {
     const [rows] = await pool.query(

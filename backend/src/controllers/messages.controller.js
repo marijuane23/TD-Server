@@ -1,6 +1,7 @@
 import { TeacherModel } from '../models/teacher.model.js';
 import { MessageModel } from '../models/message.model.js';
 import { MessageMediaModel } from '../models/messageMedia.model.js';
+import { WallMessageModel } from '../models/wallMessage.model.js';
 import { ModerationService } from '../services/moderation.service.js';
 import { getMediaType } from '../utils/validators.js';
 import { config } from '../config/env.js';
@@ -54,7 +55,24 @@ export const MessagesController = {
         });
       }
 
+      // 6. Cross-post to Open Wall (messages and images only, videos excluded per requirement)
+      if (!mediaType || mediaType === 'image') {
+        try {
+          await WallMessageModel.create({
+            teacher_id: teacher.id,
+            sender_name: senderName,
+            message_text: messageText,
+            media_data: req.file && mediaType === 'image' ? req.file.buffer : null,
+            media_mime: req.file && mediaType === 'image' ? req.file.mimetype : null,
+            media_size_bytes: req.file && mediaType === 'image' ? req.file.size : null,
+          });
+        } catch (wallErr) {
+          console.error('Error cross-posting timeline message to open wall:', wallErr);
+        }
+      }
+
       const mediaUrl = mediaId ? `${config.backendPublicUrl}/media/${mediaId}` : null;
+
 
       res.status(201).json({
         success: true,
