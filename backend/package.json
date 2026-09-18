@@ -24,5 +24,8 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.4.0",
     "mysql2": "^3.12.0"
+  },
+  "engines": {
+    "node": "20.x"
   }
 }

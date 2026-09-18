@@ -15,28 +15,56 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 export const app = express();
 
-// CORS configuration supporting configured origin and local dev
+// Enable trust proxy for Render / reverse proxies (prevents express-rate-limit proxy error)
+app.set('trust proxy', 1);
+
+// CORS configuration supporting configured origins (comma-separated), local dev, and cloud hosts
+const configuredOrigins = (config.corsOrigin || '')
+  .split(',')
+  .map((o) => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 const allowedOrigins = [
-  config.corsOrigin,
+  ...configuredOrigins,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:3000',
-].filter(Boolean);
+  'https://teachersday2026.bscs4b.com',
+]
+  .map((o) => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or Postman)
+      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
-        callback(null, true);
-      } else {
-        // In local development or staging, allow local network origins
-        if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
-          return callback(null, true);
-        }
-        callback(null, true); // Allow all for public event API
+
+      const cleanOrigin = origin.replace(/\/+$/, '');
+
+      // If '*' is specified, allow all origins
+      if (allowedOrigins.includes('*')) {
+        return callback(null, true);
       }
+
+      // Check if origin matches allowed list or domain pattern
+      const isAllowed = allowedOrigins.some((allowed) => {
+        if (allowed === cleanOrigin) return true;
+        if (allowed.startsWith('*.') && cleanOrigin.endsWith(allowed.slice(1))) return true;
+        return false;
+      });
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+
+      // In development or staging, allow local network origins
+      if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+        return callback(null, true);
+      }
+
+      // Allow all for public event API fallback while supporting credentials
+      return callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
