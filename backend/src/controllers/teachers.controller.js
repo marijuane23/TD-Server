@@ -3,6 +3,7 @@ import { MessageModel } from '../models/message.model.js';
 import { PhotoResolverService } from '../services/photoResolver.service.js';
 import { config } from '../config/env.js';
 import { imageCache, apiCache, isFresh, generateETag } from '../utils/cache.js';
+import { getBackendUrl } from '../utils/url.js';
 
 export const TeachersController = {
   // GET /teachers (search, sort, pagination)
@@ -44,6 +45,7 @@ export const TeachersController = {
       }
 
       const rawMessages = await MessageModel.getByTeacherId(teacher.id);
+      const backendUrl = getBackendUrl(req);
 
       // Transform messages with public media URLs
       const messages = rawMessages.map(m => ({
@@ -56,7 +58,7 @@ export const TeachersController = {
         media_type: m.media_type,
         media_mime: m.media_mime,
         media_size_bytes: m.media_size_bytes,
-        media_url: m.media_id ? `${config.backendPublicUrl}/media/${m.media_id}` : null,
+        media_url: m.media_id ? `${backendUrl}/media/${m.media_id}` : null,
       }));
 
       const responseData = {

@@ -29,5 +29,10 @@ export const config = {
   },
   jwtSecret: process.env.JWT_SECRET || 'dev-secret',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  backendPublicUrl: process.env.BACKEND_PUBLIC_URL || 'http://localhost:5000',
+  backendPublicUrl:
+    process.env.BACKEND_PUBLIC_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    (process.env.NODE_ENV === 'production'
+      ? 'https://td-server-6azz.onrender.com'
+      : 'http://localhost:5000'),
 };

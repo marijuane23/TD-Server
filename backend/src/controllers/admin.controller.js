@@ -7,6 +7,7 @@ import { PhotoResolverService } from '../services/photoResolver.service.js';
 import { generateSlug } from '../utils/validators.js';
 import { config } from '../config/env.js';
 import { imageCache, apiCache } from '../utils/cache.js';
+import { getBackendUrl } from '../utils/url.js';
 
 export const AdminController = {
   // POST /admin/login
@@ -154,6 +155,7 @@ export const AdminController = {
       }
 
       const rawMessages = await MessageModel.getByTeacherId(teacherId);
+      const backendUrl = getBackendUrl(req);
       const messages = rawMessages.map(m => ({
         id: m.id,
         teacher_id: m.teacher_id,
@@ -164,7 +166,7 @@ export const AdminController = {
         media_type: m.media_type,
         media_mime: m.media_mime,
         media_size_bytes: m.media_size_bytes,
-        media_url: m.media_id ? `${config.backendPublicUrl}/media/${m.media_id}` : null,
+        media_url: m.media_id ? `${backendUrl}/media/${m.media_id}` : null,
       }));
 
       res.json({
