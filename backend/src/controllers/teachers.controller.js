@@ -143,6 +143,16 @@ export const TeachersController = {
       next(err);
     }
   },
+
+  // GET /teachers/dropdown (Lightweight list of all teachers for dropdowns)
+  async getDropdownList(req, res, next) {
+    try {
+      const teachers = await TeacherModel.getAllForDropdown();
+      res.json(teachers);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
 
 export default TeachersController;
