@@ -45,9 +45,15 @@ CREATE TABLE IF NOT EXISTS message_media (
 
 CREATE TABLE IF NOT EXISTS wall_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  teacher_id INT NULL,
   sender_name VARCHAR(100),
   message_text TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  media_data LONGBLOB NULL,
+  media_mime VARCHAR(50) NULL,
+  media_size_bytes INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL,
+  INDEX idx_wall_teacher (teacher_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS admins (

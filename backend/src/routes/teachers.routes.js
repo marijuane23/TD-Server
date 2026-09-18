@@ -16,6 +16,9 @@ router.post('/resolve-preview', TeachersController.resolvePhotoPreview);
 // POST /teachers/:slug/photo (Upload or update profile picture from timeline)
 router.post('/:slug/photo', photoUpload.single('photo'), TeachersController.updateTeacherPhoto);
 
+// GET /teachers/dropdown (Lightweight list of all teachers for dropdowns)
+router.get('/dropdown', TeachersController.getDropdownList);
+
 // GET /teachers/:slug (teacher detail + timeline messages)
 router.get('/:slug', TeachersController.getTeacherBySlug);
 
