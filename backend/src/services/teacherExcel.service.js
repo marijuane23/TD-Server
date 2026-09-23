@@ -75,15 +75,18 @@ export const TeacherExcelService = {
         continue;
       }
 
-      // Map college_id from college column or department fallback
-      const college_id = resolveCollegeId(collegeVal, department);
-      if (!college_id) {
-        skipped.push({
-          row: r,
-          name,
-          reason: `Missing or unrecognized college "${collegeVal || ''}". Valid colleges: CTECH, CTE, CBM, CFES, COAS, CADS.`,
-        });
-        continue;
+      // Map college_id from college column or department fallback (optional)
+      let college_id = null;
+      if (collegeVal || department) {
+        college_id = resolveCollegeId(collegeVal, department);
+        if (collegeVal && !college_id) {
+          skipped.push({
+            row: r,
+            name,
+            reason: `Unrecognized college "${collegeVal}". Valid colleges: CTECH, CTE, CBM, CFES, COAS, CADS. Leave blank if not affiliated.`,
+          });
+          continue;
+        }
       }
 
       // Generate unique slug
@@ -179,7 +182,7 @@ export const TeacherExcelService = {
     const templateSheet = workbook.addWorksheet('Teachers Template');
     templateSheet.columns = [
       { header: 'Name', key: 'name', width: 32 },
-      { header: 'College', key: 'college', width: 42 },
+      { header: 'College (Optional)', key: 'college', width: 42 },
       { header: 'Department (Optional)', key: 'department', width: 35 },
       { header: 'Photo URL (Optional)', key: 'photo_url', width: 40 },
     ];

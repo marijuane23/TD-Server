@@ -184,6 +184,29 @@ export const TeacherModel = {
     return id ? this.getById(id) : this.getBySlug(slug);
   },
 
+  // Update teacher core information (name, college_id, department)
+  async updateInfo({ id, slug, name, college_id = null, department = null }) {
+    let where = '';
+    const params = [name, college_id, department];
+
+    if (id) {
+      where = 'WHERE id = ?';
+      params.push(id);
+    } else if (slug) {
+      where = 'WHERE slug = ?';
+      params.push(slug);
+    } else {
+      throw new Error('Teacher id or slug is required to update info.');
+    }
+
+    await pool.query(
+      `UPDATE teachers SET name = ?, college_id = ?, department = ? ${where}`,
+      params
+    );
+
+    return id ? this.getById(id) : this.getBySlug(slug);
+  },
+
   // Delete single teacher by id (cascades messages and media via MySQL FK)
   async delete(id) {
     const [result] = await pool.query('DELETE FROM teachers WHERE id = ?', [id]);
