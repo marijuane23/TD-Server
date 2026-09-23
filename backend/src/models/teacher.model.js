@@ -26,20 +26,24 @@ export const TeacherModel = {
     const params = [];
 
     if (q && q.trim() !== '') {
-      whereConditions.push('(t.name LIKE ? OR t.department LIKE ? OR c.name LIKE ? OR c.code LIKE ?)');
+      whereConditions.push('(t.name LIKE ? OR t.department LIKE ? OR t.role LIKE ? OR c.name LIKE ? OR c.code LIKE ?)');
       const searchTerm = `%${q.trim()}%`;
-      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     if (college && college !== 'all' && college.trim() !== '') {
       const colTrim = college.trim();
-      const colId = parseInt(colTrim, 10);
-      if (!isNaN(colId) && String(colId) === colTrim) {
-        whereConditions.push('(t.college_id = ? OR c.code = ?)');
-        params.push(colId, colTrim);
+      if (colTrim.toLowerCase() === 'none' || colTrim.toLowerCase() === 'unaffiliated') {
+        whereConditions.push('t.college_id IS NULL');
       } else {
-        whereConditions.push('(c.code = ? OR c.name = ?)');
-        params.push(colTrim, colTrim);
+        const colId = parseInt(colTrim, 10);
+        if (!isNaN(colId) && String(colId) === colTrim) {
+          whereConditions.push('(t.college_id = ? OR c.code = ?)');
+          params.push(colId, colTrim);
+        } else {
+          whereConditions.push('(c.code = ? OR c.name = ?)');
+          params.push(colTrim, colTrim);
+        }
       }
     }
 
@@ -79,7 +83,7 @@ export const TeacherModel = {
 
     // Items query (excluding large binary photo_data payload for fast listing)
     const itemsSql = `
-      SELECT t.id, t.name, t.department, t.college_id, c.name AS college_name, c.code AS college_code,
+      SELECT t.id, t.name, t.department, t.role, t.college_id, c.name AS college_name, c.code AS college_code,
              t.photo_url, t.slug, t.created_at, (t.photo_data IS NOT NULL) AS has_photo
       FROM teachers t
       LEFT JOIN colleges c ON t.college_id = c.id
@@ -100,7 +104,7 @@ export const TeacherModel = {
   // Get single teacher by slug
   async getBySlug(slug) {
     const [rows] = await pool.query(
-      `SELECT t.id, t.name, t.department, t.college_id, c.name AS college_name, c.code AS college_code,
+      `SELECT t.id, t.name, t.department, t.role, t.college_id, c.name AS college_name, c.code AS college_code,
               t.photo_url, t.slug, t.created_at, (t.photo_data IS NOT NULL) AS has_photo
        FROM teachers t
        LEFT JOIN colleges c ON t.college_id = c.id
@@ -113,7 +117,7 @@ export const TeacherModel = {
   // Get single teacher by id
   async getById(id) {
     const [rows] = await pool.query(
-      `SELECT t.id, t.name, t.department, t.college_id, c.name AS college_name, c.code AS college_code,
+      `SELECT t.id, t.name, t.department, t.role, t.college_id, c.name AS college_name, c.code AS college_code,
               t.photo_url, t.slug, t.created_at, (t.photo_data IS NOT NULL) AS has_photo
        FROM teachers t
        LEFT JOIN colleges c ON t.college_id = c.id
@@ -126,7 +130,7 @@ export const TeacherModel = {
   // Get lightweight list of all teachers for dropdown selects
   async getAllForDropdown() {
     const [rows] = await pool.query(
-      `SELECT t.id, t.name, t.department, t.slug, c.name AS college_name, c.code AS college_code
+      `SELECT t.id, t.name, t.department, t.role, t.slug, c.name AS college_name, c.code AS college_code
        FROM teachers t
        LEFT JOIN colleges c ON t.college_id = c.id
        ORDER BY t.name ASC`
@@ -152,11 +156,12 @@ export const TeacherModel = {
     return rows.length > 0 ? rows[0] : null;
   },
 
-  // Create single teacher with optional binary photo and college_id
-  async create({ name, department, college_id = null, photo_url, slug, photo_data = null, photo_mime = null }) {
+  // Create single teacher with optional binary photo, role, and college_id
+  async create({ name, department, role = 'faculty', college_id = null, photo_url, slug, photo_data = null, photo_mime = null }) {
+    const normalizedRole = role === 'staff' ? 'staff' : 'faculty';
     const [result] = await pool.query(
-      'INSERT INTO teachers (name, department, college_id, photo_url, slug, photo_data, photo_mime) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, department || null, college_id || null, photo_url || null, slug, photo_data, photo_mime]
+      'INSERT INTO teachers (name, department, role, college_id, photo_url, slug, photo_data, photo_mime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, department || null, normalizedRole, college_id || null, photo_url || null, slug, photo_data, photo_mime]
     );
     return this.getById(result.insertId);
   },
@@ -184,6 +189,35 @@ export const TeacherModel = {
     return id ? this.getById(id) : this.getBySlug(slug);
   },
 
+  // Update teacher core information (name, college_id, department, optional role)
+  async updateInfo({ id, slug, name, college_id = null, department = null, role = null }) {
+    let where = '';
+    const updates = ['name = ?', 'college_id = ?', 'department = ?'];
+    const params = [name, college_id, department];
+
+    if (role) {
+      updates.push('role = ?');
+      params.push(role === 'staff' ? 'staff' : 'faculty');
+    }
+
+    if (id) {
+      where = 'WHERE id = ?';
+      params.push(id);
+    } else if (slug) {
+      where = 'WHERE slug = ?';
+      params.push(slug);
+    } else {
+      throw new Error('Teacher id or slug is required to update info.');
+    }
+
+    await pool.query(
+      `UPDATE teachers SET ${updates.join(', ')} ${where}`,
+      params
+    );
+
+    return id ? this.getById(id) : this.getBySlug(slug);
+  },
+
   // Delete single teacher by id (cascades messages and media via MySQL FK)
   async delete(id) {
     const [result] = await pool.query('DELETE FROM teachers WHERE id = ?', [id]);
@@ -203,9 +237,9 @@ export const TeacherModel = {
     const params = [];
 
     if (q && q.trim() !== '') {
-      whereClause = 'WHERE (t.name LIKE ? OR t.department LIKE ? OR c.name LIKE ? OR c.code LIKE ?)';
+      whereClause = 'WHERE (t.name LIKE ? OR t.department LIKE ? OR t.role LIKE ? OR c.name LIKE ? OR c.code LIKE ?)';
       const searchTerm = `%${q.trim()}%`;
-      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     let orderBy = 'ORDER BY t.name ASC';
@@ -226,7 +260,7 @@ export const TeacherModel = {
     }
 
     const [rows] = await pool.query(
-      `SELECT t.name, t.department, t.college_id, c.name AS college_name, c.code AS college_code, t.slug, t.created_at 
+      `SELECT t.name, t.department, t.role, t.college_id, c.name AS college_name, c.code AS college_code, t.slug, t.created_at 
        FROM teachers t 
        LEFT JOIN colleges c ON t.college_id = c.id 
        ${whereClause} 

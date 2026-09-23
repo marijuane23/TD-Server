@@ -36,18 +36,19 @@ export const AdminController = {
     }
   },
 
-  // POST /admin/teachers (Add single teacher)
+  // POST /admin/teachers (Add single teacher or staff)
   async addTeacher(req, res, next) {
     try {
       const name = req.body.name ? String(req.body.name).trim() : '';
       const department = req.body.department ? String(req.body.department).trim() : null;
+      const role = req.body.role === 'staff' ? 'staff' : 'faculty';
       const college_id = req.body.college_id ? parseInt(req.body.college_id, 10) : null;
       let photo_url = req.body.photo_url ? String(req.body.photo_url).trim() : null;
       let photo_data = req.file?.buffer || null;
       let photo_mime = req.file?.mimetype || null;
 
       if (!name) {
-        return res.status(400).json({ error: 'Teacher name is required.' });
+        return res.status(400).json({ error: 'Name is required.' });
       }
 
       // If web URL is provided and no file uploaded, resolve and download image into database
@@ -75,6 +76,7 @@ export const AdminController = {
       const newTeacher = await TeacherModel.create({
         name,
         department,
+        role,
         college_id,
         photo_url,
         slug,
@@ -87,7 +89,7 @@ export const AdminController = {
 
       res.status(201).json({
         success: true,
-        message: 'Teacher added successfully.',
+        message: `${role === 'staff' ? 'Staff' : 'Faculty'} member added successfully.`,
         data: newTeacher,
       });
     } catch (err) {
@@ -102,14 +104,15 @@ export const AdminController = {
         return res.status(400).json({ error: 'Please upload an .xlsx file to import.' });
       }
 
-      const result = await TeacherExcelService.importFromBuffer(req.file.buffer);
+      const role = (req.query.role === 'staff' || req.body.role === 'staff') ? 'staff' : 'faculty';
+      const result = await TeacherExcelService.importFromBuffer(req.file.buffer, { defaultRole: role });
 
       // Invalidate teacher caches on bulk import
       apiCache.invalidate('teachers:');
 
       res.json({
         success: true,
-        message: `Import completed: ${result.createdCount} teachers added.`,
+        message: `Import completed: ${result.createdCount} ${role === 'staff' ? 'staff' : 'faculty'} members added.`,
         createdCount: result.createdCount,
         skipped: result.skipped,
       });
@@ -126,7 +129,7 @@ export const AdminController = {
       const dateStr = new Date().toISOString().split('T')[0];
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="teachers-${dateStr}.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="directory-${dateStr}.xlsx"`);
       res.send(buffer);
     } catch (err) {
       next(err);
@@ -136,9 +139,11 @@ export const AdminController = {
   // GET /admin/teachers/template (Download import template)
   async downloadTemplate(req, res, next) {
     try {
-      const buffer = await TeacherExcelService.generateTemplateBuffer();
+      const role = req.query.role === 'staff' ? 'staff' : 'faculty';
+      const buffer = await TeacherExcelService.generateTemplateBuffer({ role });
+      const filename = role === 'staff' ? 'staff-import-template.xlsx' : 'faculty-import-template.xlsx';
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename="teacher-import-template.xlsx"');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);
     } catch (err) {
       next(err);

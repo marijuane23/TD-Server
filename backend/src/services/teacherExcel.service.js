@@ -4,8 +4,8 @@ import { generateSlug } from '../utils/validators.js';
 import { TeacherModel } from '../models/teacher.model.js';
 
 export const TeacherExcelService = {
-  // Parse uploaded .xlsx file and bulk insert teachers
-  async importFromBuffer(buffer) {
+  // Parse uploaded .xlsx file and bulk insert teachers/staff
+  async importFromBuffer(buffer, { defaultRole = 'faculty' } = {}) {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
 
@@ -20,6 +20,7 @@ export const TeacherExcelService = {
     let collegeCol = null;
     let deptCol = 2;
     let photoCol = 3;
+    let roleCol = null;
 
     // Detect header row
     const firstRow = worksheet.getRow(1);
@@ -27,8 +28,9 @@ export const TeacherExcelService = {
       const val = String(cell.value || '').trim().toLowerCase();
       if (val.includes('name')) nameCol = colNumber;
       if (val.includes('college')) collegeCol = colNumber;
-      if (val.includes('department') || val.includes('dept')) deptCol = colNumber;
+      if (val.includes('department') || val.includes('dept') || val.includes('office') || val.includes('unit')) deptCol = colNumber;
       if (val.includes('photo') || val.includes('image')) photoCol = colNumber;
+      if (val.includes('role') || val.includes('category') || val.includes('type')) roleCol = colNumber;
     });
 
     const [colleges] = await pool.query('SELECT id, name, code FROM colleges');
@@ -59,31 +61,37 @@ export const TeacherExcelService = {
       const collegeRaw = collegeCol ? row.getCell(collegeCol).value : null;
       const deptRaw = deptCol ? row.getCell(deptCol).value : null;
       const photoRaw = photoCol ? row.getCell(photoCol).value : null;
+      const roleRaw = roleCol ? row.getCell(roleCol).value : null;
 
       const name = nameRaw ? String(nameRaw).trim() : '';
       const collegeVal = collegeRaw ? String(collegeRaw).trim() : null;
       const department = deptRaw ? String(deptRaw).trim() : null;
       const photo_url = photoRaw ? String(photoRaw).trim() : null;
+      const roleVal = roleRaw ? String(roleRaw).trim().toLowerCase() : '';
+      const role = (roleVal === 'staff' || roleVal === 'faculty') ? roleVal : (defaultRole === 'staff' ? 'staff' : 'faculty');
 
       if (!name) {
-        skipped.push({ row: r, reason: 'Missing required teacher name' });
+        skipped.push({ row: r, reason: 'Missing required name' });
         continue;
       }
 
       if (existingNames.has(name.toLowerCase())) {
-        skipped.push({ row: r, name, reason: 'Teacher name already exists' });
+        skipped.push({ row: r, name, reason: 'Name already exists' });
         continue;
       }
 
-      // Map college_id from college column or department fallback
-      const college_id = resolveCollegeId(collegeVal, department);
-      if (!college_id) {
-        skipped.push({
-          row: r,
-          name,
-          reason: `Missing or unrecognized college "${collegeVal || ''}". Valid colleges: CTECH, CTE, CBM, CFES, COAS, CADS.`,
-        });
-        continue;
+      // Map college_id from college column or department fallback (optional)
+      let college_id = null;
+      if (collegeVal || department) {
+        college_id = resolveCollegeId(collegeVal, department);
+        if (collegeVal && !college_id) {
+          skipped.push({
+            row: r,
+            name,
+            reason: `Unrecognized college "${collegeVal}". Valid colleges: CTECH, CTE, CBM, CFES, COAS, CADS. Leave blank if not affiliated.`,
+          });
+          continue;
+        }
       }
 
       // Generate unique slug
@@ -98,7 +106,7 @@ export const TeacherExcelService = {
       existingNames.add(name.toLowerCase());
       existingSlugs.add(slug);
 
-      rowsToInsert.push({ name, department, college_id, photo_url, slug });
+      rowsToInsert.push({ name, department, role, college_id, photo_url, slug });
     }
 
     // Insert valid rows in a database transaction
@@ -108,8 +116,8 @@ export const TeacherExcelService = {
 
       for (const t of rowsToInsert) {
         await connection.query(
-          'INSERT INTO teachers (name, department, college_id, photo_url, slug) VALUES (?, ?, ?, ?, ?)',
-          [t.name, t.department, t.college_id, t.photo_url, t.slug]
+          'INSERT INTO teachers (name, department, role, college_id, photo_url, slug) VALUES (?, ?, ?, ?, ?, ?)',
+          [t.name, t.department, t.role, t.college_id, t.photo_url, t.slug]
         );
       }
 
@@ -135,13 +143,14 @@ export const TeacherExcelService = {
     workbook.creator = "BISU Bilar Teacher's Day";
     workbook.created = new Date();
 
-    const worksheet = workbook.addWorksheet('Teachers');
+    const worksheet = workbook.addWorksheet('Directory Roster');
 
     worksheet.columns = [
-      { header: 'Teacher Name', key: 'name', width: 32 },
+      { header: 'Name', key: 'name', width: 32 },
+      { header: 'Role', key: 'role', width: 16 },
       { header: 'College', key: 'college', width: 42 },
       { header: 'College Code', key: 'college_code', width: 16 },
-      { header: 'Department (Optional)', key: 'department', width: 35 },
+      { header: 'Department / Office', key: 'department', width: 35 },
       { header: 'Profile URL Slug', key: 'slug', width: 30 },
       { header: 'Date Added', key: 'created_at', width: 22 },
     ];
@@ -158,6 +167,7 @@ export const TeacherExcelService = {
     teachers.forEach(t => {
       worksheet.addRow({
         name: t.name,
+        role: t.role === 'staff' ? 'Staff' : 'Faculty',
         college: t.college_name || 'N/A',
         college_code: t.college_code || 'N/A',
         department: t.department || '',
@@ -170,17 +180,19 @@ export const TeacherExcelService = {
   },
 
   // Generate blank template with reference sheet
-  async generateTemplateBuffer() {
+  async generateTemplateBuffer({ role = 'faculty' } = {}) {
+    const isStaff = role === 'staff';
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "BISU Bilar Teacher's Day";
     workbook.created = new Date();
 
-    // Sheet 1: Teachers Template
-    const templateSheet = workbook.addWorksheet('Teachers Template');
+    // Sheet 1: Template
+    const sheetName = isStaff ? 'Staff Template' : 'Faculty Template';
+    const templateSheet = workbook.addWorksheet(sheetName);
     templateSheet.columns = [
-      { header: 'Name', key: 'name', width: 32 },
-      { header: 'College', key: 'college', width: 42 },
-      { header: 'Department (Optional)', key: 'department', width: 35 },
+      { header: isStaff ? 'Staff Name' : 'Faculty Name', key: 'name', width: 32 },
+      { header: 'College (Optional)', key: 'college', width: 42 },
+      { header: isStaff ? 'Department / Office (Optional)' : 'Department (Optional)', key: 'department', width: 35 },
       { header: 'Photo URL (Optional)', key: 'photo_url', width: 40 },
     ];
 
@@ -189,21 +201,36 @@ export const TeacherExcelService = {
     headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF0D9488' }, // Teal
+      fgColor: { argb: isStaff ? 'FF0D9488' : 'FF1E3A8A' }, // Teal for Staff, Navy for Faculty
     };
 
-    templateSheet.addRow({
-      name: 'Dr. Maria Elena Santos',
-      college: 'CTECH',
-      department: 'Computer Science Department',
-      photo_url: '',
-    });
-    templateSheet.addRow({
-      name: 'Prof. Juan Dela Cruz',
-      college: 'College of Teacher Education',
-      department: '',
-      photo_url: '',
-    });
+    if (isStaff) {
+      templateSheet.addRow({
+        name: 'Engr. Roberto Cruz',
+        college: 'CADS',
+        department: 'Administrative Services',
+        photo_url: '',
+      });
+      templateSheet.addRow({
+        name: 'Ms. Carmela Bautista',
+        college: '',
+        department: 'Registrar Office',
+        photo_url: '',
+      });
+    } else {
+      templateSheet.addRow({
+        name: 'Dr. Maria Elena Santos',
+        college: 'CTECH',
+        department: 'Computer Science Department',
+        photo_url: '',
+      });
+      templateSheet.addRow({
+        name: 'Prof. Juan Dela Cruz',
+        college: 'College of Teacher Education',
+        department: '',
+        photo_url: '',
+      });
+    }
 
     // Sheet 2: Colleges Reference
     const refSheet = workbook.addWorksheet('Colleges Reference');
