@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS teachers (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   department VARCHAR(100),
+  role VARCHAR(20) NOT NULL DEFAULT 'faculty',
   college_id INT NULL,
   photo_url VARCHAR(255),
   photo_data LONGBLOB,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS teachers (
   FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE SET NULL,
   INDEX idx_teachers_name (name),
   INDEX idx_teachers_department (department),
+  INDEX idx_teachers_role (role),
   INDEX idx_teachers_college_id (college_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
