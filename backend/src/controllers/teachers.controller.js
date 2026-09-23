@@ -178,6 +178,43 @@ export const TeachersController = {
     }
   },
 
+  // PUT /teachers/:slug (Update teacher information: name, college, department)
+  async updateTeacherInfo(req, res, next) {
+    try {
+      const { slug } = req.params;
+      const teacher = await TeacherModel.getBySlug(slug);
+      if (!teacher) {
+        return res.status(404).json({ error: 'Teacher not found' });
+      }
+
+      const name = req.body?.name ? String(req.body.name).trim() : '';
+      if (!name) {
+        return res.status(400).json({ error: 'Teacher name is required.' });
+      }
+
+      const college_id = req.body?.college_id ? parseInt(req.body.college_id, 10) : null;
+      const department = req.body?.department ? String(req.body.department).trim() : null;
+
+      const updated = await TeacherModel.updateInfo({
+        id: teacher.id,
+        name,
+        college_id: isNaN(college_id) ? null : college_id,
+        department,
+      });
+
+      // Invalidate teacher listings and profile caches
+      apiCache.invalidate('teachers:');
+
+      res.json({
+        success: true,
+        message: 'Faculty information updated successfully.',
+        teacher: updated,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // POST /teachers/resolve-preview (Instant preview for web links & Pinterest pins)
   async resolvePhotoPreview(req, res, next) {
     try {

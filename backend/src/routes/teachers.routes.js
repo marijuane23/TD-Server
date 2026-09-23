@@ -22,4 +22,7 @@ router.get('/dropdown', TeachersController.getDropdownList);
 // GET /teachers/:slug (teacher detail + timeline messages)
 router.get('/:slug', TeachersController.getTeacherBySlug);
 
+// PUT /teachers/:slug (Update teacher information: name, college, department)
+router.put('/:slug', TeachersController.updateTeacherInfo);
+
 export default router;
